@@ -204,8 +204,13 @@ export function useFinnHub(
     tickersRef.current = tickers;
   }, [tickers]);
 
+  // -------------------------------------------------------
+  // 🔹 Start Dummy Data — runs only if WebSocket fails
+  // -------------------------------------------------------
   const startDummyData = () => {
-    console.log("⚠️ Using Dummy Data Stream");
+    if (dummyInterval.current) return; // Avoid multiple intervals
+
+    console.log("⚠️ Starting Dummy Data Stream");
 
     dummyInterval.current = setInterval(() => {
       const updates = {};
@@ -213,10 +218,10 @@ export function useFinnHub(
 
       symbols.forEach((s) => {
         const prev = tickersRef.current[s]?.price ?? PORTFOLIO[s].avgPrice;
-        const price = prev + (Math.random() * 10 - 5); // random fluctuation
-        const change = prev ? ((price - prev) / prev) * 100 : 0;
+        const price = prev + (Math.random() * 10 - 5);
+        const change = ((price - prev) / prev) * 100;
 
-        const randomOffset = Math.floor(Math.random() * 20 * 60 * 1000); // 0 - 20 min in ms
+        const randomOffset = Math.floor(Math.random() * 20 * 60 * 1000);
         const timeStamp = now - randomOffset;
 
         updates[s] = {
@@ -228,7 +233,7 @@ export function useFinnHub(
           quantity: PORTFOLIO[s].quantity,
           avgPrice: PORTFOLIO[s].avgPrice,
           profitLoss: (price - PORTFOLIO[s].avgPrice) * PORTFOLIO[s].quantity,
-          timeStamp: timeStamp,
+          timeStamp,
         };
       });
 
@@ -244,18 +249,28 @@ export function useFinnHub(
     }, 1000);
   };
 
+  // -------------------------------------------------------
+  // 🔹 WebSocket Connection Logic
+  // -------------------------------------------------------
   useEffect(() => {
-    let reconnectInterval;
-
     const connectWebSocket = () => {
       if (socketRef.current) return;
+
       setLoading(true);
 
       const socket = new WebSocket(`wss://ws.finnhub.io?token=${API_KEY}`);
       socketRef.current = socket;
 
       socket.onopen = () => {
-        console.log("🟢 WebSocket connected");
+        console.log("🟢 WebSocket Connected");
+
+        // Stop Dummy if running
+        if (dummyInterval.current) {
+          clearInterval(dummyInterval.current);
+          dummyInterval.current = null;
+          console.log("🛑 Dummy Mode Stopped (WS Connected)");
+        }
+
         symbols.forEach((s) =>
           socket.send(JSON.stringify({ type: "subscribe", symbol: s }))
         );
@@ -263,29 +278,32 @@ export function useFinnHub(
 
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        // Ping only → fallback to dummy after delay
+
         if (data.type === "ping") return;
+
         if (data.status === "auth_failed") {
+          console.log("❌ Invalid API Key — Switching to Dummy Mode");
           socket.close();
+          socketRef.current = null;
           startDummyData();
           return;
         }
 
         if (data.type === "trade") {
           const updates = {};
+
           data.data.forEach((trade) => {
             const symbol = trade.s;
             const price = trade.p;
-            const quantity = PORTFOLIO[symbol].quantity;
             const prev = tickersRef.current[symbol]?.price ?? price;
+            const quantity = PORTFOLIO[symbol].quantity;
+
             const change = prev ? ((price - prev) / prev) * 100 : 0;
-            const status =
-              price > prev ? "green" : price < prev ? "red" : "neutral";
 
             updates[symbol] = {
               price,
               change,
-              status,
+              status: price > prev ? "green" : price < prev ? "red" : "neutral",
               percentVariant: change.toFixed(2) + "%",
               company: PORTFOLIO[symbol].company,
               quantity,
@@ -307,30 +325,34 @@ export function useFinnHub(
         }
       };
 
-      socket.onerror = (err) => {
-        console.error("WebSocket error:", err);
-        startDummyData();
+      // -----------------------------------------------------
+      // 🔹 On Close: Try to reconnect before starting dummy
+      // -----------------------------------------------------
+      socket.onclose = () => {
+        console.warn("WebSocket Closed");
+        socketRef.current = null;
+
+        // Give 3 seconds to auto reconnect
+        setTimeout(() => {
+          if (!socketRef.current) {
+            console.log("⛔ WS not reconnected — starting Dummy");
+            startDummyData();
+          }
+        }, 3000);
       };
 
-      socket.onclose = (ev) => {
-        console.warn("WebSocket closed:", ev.code, ev.reason);
-        socketRef.current = null;
-        if (!ev.wasClean) startDummyData();
+      socket.onerror = (err) => {
+        console.error("WebSocket Error:", err);
+        socket.close();
       };
     };
 
     connectWebSocket();
 
-    // Reconnect every intervalMinutes
-    reconnectInterval = setInterval(() => {
-      if (socketRef.current) socketRef.current.close();
-      connectWebSocket();
-    }, intervalMinutes * 60 * 1000);
-
     return () => {
       if (socketRef.current) socketRef.current.close();
-      clearInterval(dummyInterval.current);
-      clearInterval(reconnectInterval);
+      if (dummyInterval.current) clearInterval(dummyInterval.current);
+      dummyInterval.current = null;
     };
   }, []);
 
