@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  /* --- Mobile Breakpoints (Smallest to Largest) --- */
+  --breakpoint-mobile-sm: 20rem;        /* 320px */
+  --breakpoint-mobile-md: 23.4375rem;   /* 375px */
+  --breakpoint-mobile-lg: 26.5625rem;   /* 425px */
+  --breakpoint-mobile-xl: 30rem;        /* 480px */
+  
+  /* --- Tablet Breakpoints --- */
+  --breakpoint-tablet-sm: 37.5rem;      /* 600px */
+  --breakpoint-tablet-md: 48rem;        /* 768px */
+  --breakpoint-tablet-lg: 56.25rem;     /* 900px */
+  
+  /* --- Laptop Breakpoints --- */
+  --breakpoint-laptop-sm: 64rem;        /* 1024px */
+  --breakpoint-laptop-md: 80rem;        /* 1280px */
+  --breakpoint-laptop-lg: 90rem;        /* 1440px */
+  
+  /* --- Desktop Breakpoints --- */
+  --breakpoint-desktop-sm: 96rem;       /* 1536px */
+  --breakpoint-desktop-md: 105rem;      /* 1680px */
+  --breakpoint-desktop-lg: 120rem;      /* 1920px */
+  --breakpoint-desktop-xl: 160rem;      /* 2560px */
+}
+
+.MuiTableSortLabel-root .MuiTableSortLabel-icon {
+  opacity: 1 !important;       /* Always visible */
+}
+
+.MuiTableSortLabel-root:hover .MuiTableSortLabel-icon {
+  opacity: 1 !important;       /* No hover change */
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
